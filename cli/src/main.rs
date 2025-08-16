@@ -1,7 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod command;
 mod commands;
+mod context;
 
 #[derive(Parser, Clone)]
 #[command(name = "tsctl")]
@@ -77,11 +79,18 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
-    let client = reqwest::Client::new();
+    let ctx = context::Context::new(cli.api_url.clone());
+
+    use command::Command;
+    use commands::port::PortCommand;
 
     match &cli.command {
         Commands::Port { service, port } => {
-            commands::port::execute(cli.clone(), client.clone(), service, *port).await?;
+            let cmd = PortCommand {
+                service: service.clone(),
+                port: *port,
+            };
+            cmd.execute(&ctx).await?;
         }
         Commands::Switch {
             service,

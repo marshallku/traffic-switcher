@@ -1,35 +1,45 @@
+use anyhow::Result;
+use async_trait::async_trait;
 use colored::Colorize;
-use reqwest::Client;
 use serde_json::json;
 
-use crate::Cli;
-use anyhow::Result;
+use crate::command::Command;
+use crate::context::Context;
 
-pub async fn execute(cli: Cli, client: Client, service: &str, port: u16) -> Result<()> {
-    println!(
-        "{}",
-        format!("Updating {} to port {}...", service, port).blue()
-    );
+pub struct PortCommand {
+    pub service: String,
+    pub port: u16,
+}
 
-    let response = client
-        .post(format!("{}/config/port", cli.api_url))
-        .json(&json!({
-            "service": service,
-            "port": port
-        }))
-        .send()
-        .await?;
-
-    let result: serde_json::Value = response.json().await?;
-
-    if let Some(error) = result.get("error") {
-        println!("{}", format!("✗ {}", error).red());
-        Err(anyhow::anyhow!("Error updating port"))
-    } else {
+#[async_trait]
+impl Command for PortCommand {
+    async fn execute(&self, ctx: &Context) -> Result<()> {
         println!(
             "{}",
-            format!("✓ {}", result["message"].as_str().unwrap_or("Updated")).green()
+            format!("Updating {} to port {}...", self.service, self.port).blue()
         );
-        Ok(())
+
+        let response = ctx
+            .client
+            .post(ctx.api_endpoint("config/port"))
+            .json(&json!({
+                "service": self.service,
+                "port": self.port
+            }))
+            .send()
+            .await?;
+
+        let result: serde_json::Value = response.json().await?;
+
+        if let Some(error) = result.get("error") {
+            println!("{}", format!("✗ {}", error).red());
+            Err(anyhow::anyhow!("Error updating port"))
+        } else {
+            println!(
+                "{}",
+                format!("✓ {}", result["message"].as_str().unwrap_or("Updated")).green()
+            );
+            Ok(())
+        }
     }
 }
