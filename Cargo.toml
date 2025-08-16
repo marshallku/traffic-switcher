@@ -1,3 +1,5 @@
+[workspace]
+members = [".", "cli"]
 
 [package]
 name = "traffic_switcher"
