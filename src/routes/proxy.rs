@@ -5,59 +5,18 @@ use axum::{
 };
 use hyper::client::conn::http1::Builder;
 use hyper_util::rt::TokioIo;
-use std::collections::HashMap;
 use tokio::net::TcpStream;
 use tracing::error;
 
 use crate::env::state::AppState;
-
-#[derive(Clone, Debug)]
-struct ServiceConfig {
-    host: String,
-    port: u16,
-    health_check: String,
-}
 
 pub async fn proxy_handler(
     Host(host): Host,
     State(state): State<AppState>,
     req: Request,
 ) -> Result<Response, StatusCode> {
-    // let routes = state.routes_map.read().await;
-    // let services = state.services_map.read().await;
-
-    // FIXME: Mock values
-    let mut routes: HashMap<String, String> = HashMap::new();
-    routes.insert("blog.example.com".to_string(), "blog".to_string());
-    routes.insert("api.example.com".to_string(), "api".to_string());
-    routes.insert("proxy.marshallku.dev".to_string(), "blog".to_string());
-    routes.insert("*".to_string(), "blog".to_string());
-
-    let mut services: HashMap<String, ServiceConfig> = HashMap::new();
-    services.insert(
-        "blog".to_string(),
-        ServiceConfig {
-            host: "localhost".to_string(),
-            port: 18090,
-            health_check: "/health".to_string(),
-        },
-    );
-    services.insert(
-        "api".to_string(),
-        ServiceConfig {
-            host: "localhost".to_string(),
-            port: 3000,
-            health_check: "/api/health".to_string(),
-        },
-    );
-    services.insert(
-        "admin".to_string(),
-        ServiceConfig {
-            host: "localhost".to_string(),
-            port: 5000,
-            health_check: "/health".to_string(),
-        },
-    );
+    let routes = state.routes_map.read().await;
+    let services = state.services_map.read().await;
 
     let domain = host.split(':').next().unwrap_or(&host);
     let service_name = routes

@@ -1,0 +1,32 @@
+api_port: 1143
+proxy_port: 1144
+
+services:
+  - name: blog
+    host: localhost
+    port: 4200
+    health_check: /health
+
+  - name: api
+    host: localhost
+    port: 3000
+    health_check: /api/health
+
+  - name: admin
+    host: localhost
+    port: 5000
+    health_check: /health
+
+routes:
+  - domain: blog.example.com
+    service: blog
+    
+  - domain: api.example.com
+    service: api
+    
+  - domain: admin.example.com
+    service: admin
+    
+  # Wildcard route (catches all other domains)
+  - domain: "*"
+    service: blog

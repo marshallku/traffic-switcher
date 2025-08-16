@@ -21,7 +21,7 @@ async fn main() {
         .compact()
         .init();
 
-    let state = AppState::from_env();
+    let state = AppState::new().await;
     let api_addr = SocketAddr::from(([0, 0, 0, 0], state.port));
     let proxy_addr = SocketAddr::from(([0, 0, 0, 0], state.proxy_port));
     let api_app = app()
