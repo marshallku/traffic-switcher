@@ -79,4 +79,30 @@ impl AppState {
         log::info!("Config: {:?}", config);
         Ok(config)
     }
+
+    pub async fn update_service_port(
+        &self,
+        service_name: &str,
+        new_port: u16,
+    ) -> Result<u16, String> {
+        let mut config = self.config.write().await;
+        let mut services_map = self.services_map.write().await;
+
+        let service = config
+            .services
+            .iter_mut()
+            .find(|s| s.name == service_name)
+            .ok_or_else(|| format!("Service '{}' not found", service_name))?;
+
+        let old_port = service.port;
+        service.previous_port = Some(old_port);
+        service.port = new_port;
+
+        if let Some(map_service) = services_map.get_mut(service_name) {
+            map_service.previous_port = Some(old_port);
+            map_service.port = new_port;
+        }
+
+        Ok(old_port)
+    }
 }
