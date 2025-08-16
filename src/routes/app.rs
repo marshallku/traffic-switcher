@@ -9,5 +9,6 @@ pub fn app() -> Router<AppState> {
     Router::new()
         .route("/", get(super::index::get))
         .route("/config", get(super::config::index::get))
+        .route("/config/reload", get(super::config::reload::get))
         .route("/config/port", post(super::config::port::post))
 }

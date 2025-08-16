@@ -99,7 +99,6 @@ impl AppState {
         }
     }
 
-    #[allow(dead_code)]
     pub async fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
         let config = self.config.read().await;
         let yaml = serde_yaml::to_string(&*config)?;
@@ -112,6 +111,12 @@ impl AppState {
         let config: Config = serde_yaml::from_str(&config_str)?;
         log::info!("Config: {:?}", config);
         Ok(config)
+    }
+
+    pub async fn reload_config(&self) -> Result<Config, Box<dyn std::error::Error>> {
+        let new_config = Self::load_config().await?;
+        *self.config.write().await = new_config.clone();
+        Ok(new_config)
     }
 
     pub async fn update_service_port(
