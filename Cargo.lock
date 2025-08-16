@@ -459,28 +459,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http_server_template"
-version = "0.1.0"
-dependencies = [
- "axum",
- "dotenv",
- "env_logger",
- "http-body-util",
- "hyper",
- "hyper-util",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
- "tower 0.4.13",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "httparse"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1602,6 +1580,28 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "traffic_switcher"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "dotenv",
+ "env_logger",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
