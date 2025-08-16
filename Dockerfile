@@ -4,11 +4,14 @@ WORKDIR /usr/src/traffic_switcher
 
 RUN set -eux; \
     apk add --no-cache musl-dev pkgconfig libressl-dev; \
-    rm -rf $CARGO_HOME/registry
+    rm -rf $CARGO_HOME/registry && \
+    mkdir -p cli/src
 
 COPY Cargo.* .
+COPY cli/Cargo.* cli/
 
 RUN mkdir src && \
+    echo 'fn main() {println!("Hello, world!");}' > cli/src/main.rs && \
     echo 'fn main() {println!("Hello, world!");}' > src/main.rs && \
     cargo build --release && \
     rm target/release/traffic_switcher* && \
