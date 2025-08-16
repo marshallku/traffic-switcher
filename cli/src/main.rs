@@ -25,6 +25,9 @@ enum Commands {
         service: String,
         /// New port number
         port: u16,
+        /// Skip health check
+        #[arg(short, long, default_value = "false")]
+        skip_health: bool,
     },
     /// Switch a service between two ports (blue-green deployment)
     Switch {
@@ -85,10 +88,15 @@ async fn main() -> Result<()> {
     use commands::port::PortCommand;
 
     match &cli.command {
-        Commands::Port { service, port } => {
+        Commands::Port {
+            service,
+            port,
+            skip_health,
+        } => {
             let cmd = PortCommand {
                 service: service.clone(),
                 port: *port,
+                skip_health: *skip_health,
             };
             cmd.execute(&ctx).await?;
         }

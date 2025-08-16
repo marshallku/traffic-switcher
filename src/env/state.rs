@@ -84,6 +84,7 @@ impl AppState {
         &self,
         service_name: &str,
         new_port: u16,
+        skip_health_check: bool,
     ) -> Result<u16, String> {
         let mut config = self.config.write().await;
         let mut services_map = self.services_map.write().await;
@@ -97,6 +98,37 @@ impl AppState {
         let old_port = service.port;
         service.previous_port = Some(old_port);
         service.port = new_port;
+
+        log::info!(
+            "Updating service '{}' from port {} to {} (skip_health_check: {})",
+            service_name,
+            old_port,
+            new_port,
+            skip_health_check
+        );
+
+        if !skip_health_check {
+            let client = reqwest::Client::new();
+
+            for i in 0..10 {
+                let response = client
+                    .get(format!("http://{}:{}", service.host, service.port))
+                    .send()
+                    .await;
+
+                log::info!("Response: {:?}", response);
+
+                if response.is_ok() {
+                    break;
+                }
+
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                if i == 9 {
+                    return Err(format!("Service '{}' is not healthy", service_name));
+                }
+            }
+        }
 
         if let Some(map_service) = services_map.get_mut(service_name) {
             map_service.previous_port = Some(old_port);

@@ -8,6 +8,12 @@ use crate::env::state::AppState;
 pub struct UpdatePortRequest {
     pub service: String,
     pub port: u16,
+    #[serde(default = "default_skip_health_check")]
+    pub skip_health_check: bool,
+}
+
+fn default_skip_health_check() -> bool {
+    false
 }
 
 pub async fn post(
@@ -23,7 +29,10 @@ pub async fn post(
         );
     }
 
-    match state.update_service_port(&req.service, req.port).await {
+    match state
+        .update_service_port(&req.service, req.port, req.skip_health_check)
+        .await
+    {
         Ok(old_port) => {
             if let Err(e) = state.save_config().await {
                 log::error!("Failed to save config: {}", e);
