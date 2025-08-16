@@ -56,12 +56,10 @@ enum Commands {
     Deploy {
         /// Service name
         service: String,
-        /// Blue port (default instance)
-        #[arg(default_value = "4200")]
-        blue_port: u16,
-        /// Green port (alternate instance)
-        #[arg(default_value = "4201")]
-        green_port: u16,
+        /// Previous port (current instance)
+        previous_port: u16,
+        /// Next port (new instance)
+        next_port: u16,
         /// Skip health check
         #[arg(short, long)]
         skip_health: bool,
@@ -113,13 +111,13 @@ async fn main() -> Result<()> {
         }
         Commands::Deploy {
             service,
-            blue_port,
-            green_port,
+            previous_port,
+            next_port,
             skip_health,
         } => {
             println!(
-                "Deploy: {} (blue: {}, green: {}, skip_health: {})",
-                service, blue_port, green_port, skip_health
+                "Deploy: {} (previous: {}, next: {}, skip_health: {})",
+                service, previous_port, next_port, skip_health
             );
         }
         Commands::Current { service } => {
