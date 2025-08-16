@@ -10,7 +10,7 @@ pub struct Service {
     pub host: String,
     pub port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub health_check: Option<String>,
+    pub health_check: Option<HealthCheckConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_port: Option<u16>,
 }
@@ -22,11 +22,45 @@ pub struct Route {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthCheckConfig {
+    #[serde(default = "default_path")]
+    pub path: String,
+    #[serde(default = "default_retry_count")]
+    pub retry_count: u32,
+    #[serde(default = "default_retry_delay")]
+    pub retry_delay_seconds: u64,
+}
+
+fn default_path() -> String {
+    "/".to_string()
+}
+
+fn default_retry_count() -> u32 {
+    10
+}
+
+fn default_retry_delay() -> u64 {
+    1
+}
+
+impl Default for HealthCheckConfig {
+    fn default() -> Self {
+        Self {
+            path: default_path(),
+            retry_count: default_retry_count(),
+            retry_delay_seconds: default_retry_delay(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub services: Vec<Service>,
     pub routes: Vec<Route>,
     pub api_port: u16,
     pub proxy_port: u16,
+    #[serde(default)]
+    pub health_check: HealthCheckConfig,
 }
 
 #[derive(Clone)]
@@ -110,11 +144,14 @@ impl AppState {
         if !skip_health_check {
             let client = reqwest::Client::new();
 
-            for i in 0..10 {
-                let response = client
-                    .get(format!("http://{}:{}", service.host, service.port))
-                    .send()
-                    .await;
+            let path = service.health_check.as_ref().unwrap().path.clone();
+            let url = format!("http://{}:{}{}", service.host, service.port, path);
+
+            let retry_count = service.health_check.as_ref().unwrap().retry_count;
+            let retry_delay = service.health_check.as_ref().unwrap().retry_delay_seconds;
+
+            for i in 0..retry_count {
+                let response = client.get(url.clone()).send().await;
 
                 log::info!("Response: {:?}", response);
 
@@ -122,9 +159,9 @@ impl AppState {
                     break;
                 }
 
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(retry_delay)).await;
 
-                if i == 9 {
+                if i == retry_count - 1 {
                     return Err(format!("Service '{}' is not healthy", service_name));
                 }
             }

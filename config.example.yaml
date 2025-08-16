@@ -2,31 +2,38 @@ api_port: 1143
 proxy_port: 1144
 
 services:
-  - name: blog
-    host: localhost
-    port: 4200
-    health_check: /health
+    - name: blog
+      host: localhost
+      port: 4200
+      health_check:
+          path: /health
 
-  - name: api
-    host: localhost
-    port: 3000
-    health_check: /api/health
+    - name: api
+      host: localhost
+      port: 3000
+      health_check:
+          path: /health
+          retry_count: 3
+          retry_delay_seconds: 1
 
-  - name: admin
-    host: localhost
-    port: 5000
-    health_check: /health
+    - name: admin
+      host: localhost
+      port: 5000
+      health_check:
+          path: /health
+          retry_count: 10
+          retry_delay_seconds: 2
 
 routes:
-  - domain: blog.example.com
-    service: blog
-    
-  - domain: api.example.com
-    service: api
-    
-  - domain: admin.example.com
-    service: admin
-    
-  # Wildcard route (catches all other domains)
-  - domain: "*"
-    service: blog
+    - domain: blog.example.com
+      service: blog
+
+    - domain: api.example.com
+      service: api
+
+    - domain: admin.example.com
+      service: admin
+
+    # Wildcard route (catches all other domains)
+    - domain: "*"
+      service: blog
