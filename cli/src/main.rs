@@ -1,7 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-#[derive(Parser)]
+mod commands;
+
+#[derive(Parser, Clone)]
 #[command(name = "tsctl")]
 #[command(about = "Traffic Switcher CLI - Port-based deployment tool", long_about = None)]
 struct Cli {
@@ -13,7 +15,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Commands {
     /// Update a service to use a different port
     Port {
@@ -77,10 +79,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
+    let client = reqwest::Client::new();
 
     match &cli.command {
         Commands::Port { service, port } => {
-            println!("Port: {} -> {}", service, port);
+            commands::port::execute(cli.clone(), client.clone(), service, *port).await?;
         }
         Commands::Switch {
             service,
