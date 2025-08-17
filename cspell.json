@@ -6,6 +6,7 @@
         "BUILDKIT",
         "callout",
         "chrono",
+        "clippy",
         "codebases",
         "codepoint",
         "codepoints",
