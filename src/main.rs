@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use axum::Router;
+use clap::Parser;
 use env::state::AppState;
 use routes::app::app;
 use tokio::signal;
@@ -14,6 +16,19 @@ mod env;
 mod routes;
 mod utils;
 
+#[derive(Parser, Debug)]
+#[command(name = "traffic-switcher")]
+#[command(about = "HTTP reverse proxy with dynamic port switching", long_about = None)]
+struct Args {
+    /// Path to configuration file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+    
+    /// Only check config validity and exit
+    #[arg(long)]
+    check: bool,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -21,7 +36,18 @@ async fn main() {
         .compact()
         .init();
 
+    let args = Args::parse();
+    
+    if let Some(config_path) = args.config {
+        std::env::set_var("CONFIG_PATH", config_path);
+    }
+    
     let state = AppState::new().await;
+    
+    if args.check {
+        info!("Configuration is valid");
+        std::process::exit(0);
+    }
     let api_addr = SocketAddr::from(([0, 0, 0, 0], state.port));
     let proxy_addr = SocketAddr::from(([0, 0, 0, 0], state.proxy_port));
     let api_app = app()

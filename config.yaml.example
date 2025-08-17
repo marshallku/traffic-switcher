@@ -1,0 +1,47 @@
+# Traffic Switcher Configuration Example
+# This file demonstrates all available configuration options
+
+# List of backend services
+services:
+  # Service with health check enabled
+  - name: "web-app"
+    host: "127.0.0.1"
+    port: 3000
+    health_check:
+      path: "/health"        # Health check endpoint
+      retry_count: 3         # Number of retries before considering unhealthy
+      retry_delay: 1         # Delay in seconds between retries
+
+  # Service without health check
+  - name: "api"
+    host: "127.0.0.1"
+    port: 8080
+
+  # Another service example
+  - name: "admin"
+    host: "127.0.0.1"
+    port: 9000
+    health_check:
+      path: "/api/health"
+      retry_count: 5
+      retry_delay: 2
+
+# Domain routing configuration
+routes:
+  # Specific domain mapping
+  - domain: "app.example.com"
+    service: "web-app"
+  
+  - domain: "api.example.com"
+    service: "api"
+  
+  - domain: "admin.example.com"
+    service: "admin"
+  
+  # Wildcard catch-all route (must be last)
+  - domain: "*"
+    service: "web-app"
+
+# Server ports
+api_port: 1143    # Management API port (for tsctl and REST API)
+proxy_port: 1144  # HTTP reverse proxy port (where traffic comes in)

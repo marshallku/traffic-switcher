@@ -1687,6 +1687,7 @@ name = "traffic_switcher"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "clap",
  "dotenv",
  "env_logger",
  "http-body-util",

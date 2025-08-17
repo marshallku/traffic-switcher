@@ -102,13 +102,16 @@ impl AppState {
     pub async fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
         let config = self.config.read().await;
         let yaml = serde_yaml::to_string(&*config)?;
-        fs::write("config.yaml", yaml).await?;
+        let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "config.yaml".to_string());
+        fs::write(config_path, yaml).await?;
         Ok(())
     }
 
     pub async fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
-        let config_str = fs::read_to_string("config.yaml").await?;
+        let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "config.yaml".to_string());
+        let config_str = fs::read_to_string(&config_path).await?;
         let config: Config = serde_yaml::from_str(&config_str)?;
+        log::info!("Loaded config from: {}", config_path);
         log::info!("Config: {:?}", config);
         Ok(config)
     }
