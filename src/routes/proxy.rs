@@ -55,11 +55,8 @@ pub async fn proxy_request(mut req: Request, target: &str) -> Result<Response, S
     let uri = req.uri();
     let path_and_query = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
 
-    *req.uri_mut() = Uri::builder()
-        .scheme("http")
-        .authority(target)
-        .path_and_query(path_and_query)
-        .build()
+    *req.uri_mut() = path_and_query
+        .parse::<Uri>()
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let response = sender.send_request(req).await.map_err(|e| {
