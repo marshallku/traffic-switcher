@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 mod command;
 mod commands;
@@ -19,6 +20,39 @@ struct Cli {
 
 #[derive(Subcommand, Clone)]
 enum Commands {
+    /// Start the traffic-switcher server
+    Start {
+        /// Configuration file path
+        #[arg(short, long)]
+        config: Option<PathBuf>,
+        /// Run in daemon mode (background)
+        #[arg(short, long)]
+        daemon: bool,
+        /// Log file path (for daemon mode)
+        #[arg(short, long)]
+        log_file: Option<PathBuf>,
+        /// PID file path (for daemon mode)
+        #[arg(short, long)]
+        pid_file: Option<PathBuf>,
+        /// Enable verbose logging
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Stop the traffic-switcher server
+    Stop {
+        /// PID file path
+        #[arg(short = 'f', long)]
+        pid_file: Option<PathBuf>,
+        /// Process ID to stop
+        #[arg(short, long)]
+        pid: Option<u32>,
+    },
+    /// Check server status
+    Status {
+        /// PID file path
+        #[arg(short, long)]
+        pid_file: Option<PathBuf>,
+    },
     /// Update a service to use a different port
     Port {
         /// Service name
@@ -86,8 +120,40 @@ async fn main() -> Result<()> {
 
     use command::Command;
     use commands::port::PortCommand;
+    use commands::start::StartCommand;
+    use commands::stop::StopCommand;
+    use commands::status::StatusCommand;
 
     match &cli.command {
+        Commands::Start {
+            config,
+            daemon,
+            log_file,
+            pid_file,
+            verbose,
+        } => {
+            let cmd = StartCommand {
+                config: config.clone(),
+                daemon: *daemon,
+                log_file: log_file.clone(),
+                pid_file: pid_file.clone(),
+                verbose: *verbose,
+            };
+            cmd.execute(&ctx).await?;
+        }
+        Commands::Stop { pid_file, pid } => {
+            let cmd = StopCommand {
+                pid_file: pid_file.clone(),
+                pid: *pid,
+            };
+            cmd.execute(&ctx).await?;
+        }
+        Commands::Status { pid_file } => {
+            let cmd = StatusCommand {
+                pid_file: pid_file.clone(),
+            };
+            cmd.execute(&ctx).await?;
+        }
         Commands::Port {
             service,
             port,
