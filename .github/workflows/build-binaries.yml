@@ -1,0 +1,106 @@
+name: Build Binaries
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Primary targets (fast builds)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: traffic-switcher-linux-amd64
+            tsctl_name: tsctl-linux-amd64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: traffic-switcher-darwin-amd64
+            tsctl_name: tsctl-darwin-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: traffic-switcher-darwin-arm64
+            tsctl_name: tsctl-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: traffic-switcher-windows-amd64
+            tsctl_name: tsctl-windows-amd64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build traffic-switcher
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Build tsctl
+        run: cargo build --release --target ${{ matrix.target }} -p tsctl
+      
+      - name: Package binaries
+        run: |
+          mkdir -p dist
+          
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/traffic_switcher.exe dist/${{ matrix.artifact_name }}.exe
+            cp target/${{ matrix.target }}/release/tsctl.exe dist/${{ matrix.tsctl_name }}.exe
+          else
+            cp target/${{ matrix.target }}/release/traffic_switcher dist/${{ matrix.artifact_name }}
+            cp target/${{ matrix.target }}/release/tsctl dist/${{ matrix.tsctl_name }}
+            chmod +x dist/${{ matrix.artifact_name }}
+            chmod +x dist/${{ matrix.tsctl_name }}
+          fi
+        shell: bash
+      
+      - name: Upload traffic-switcher binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}*
+      
+      - name: Upload tsctl binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.tsctl_name }}
+          path: dist/${{ matrix.tsctl_name }}*
+      
+      - name: Test binaries
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            dist/${{ matrix.tsctl_name }}.exe --help
+          else
+            dist/${{ matrix.tsctl_name }} --help
+          fi
+        shell: bash

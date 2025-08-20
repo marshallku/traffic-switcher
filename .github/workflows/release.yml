@@ -1,0 +1,249 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-binaries:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux targets
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: traffic-switcher-linux-amd64
+            tsctl_name: tsctl-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: traffic-switcher-linux-arm64
+            tsctl_name: tsctl-linux-arm64
+            use_cross: true
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: traffic-switcher-linux-musl-amd64
+            tsctl_name: tsctl-linux-musl-amd64
+            use_cross: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact_name: traffic-switcher-linux-musl-arm64
+            tsctl_name: tsctl-linux-musl-arm64
+            use_cross: true
+          
+          # macOS targets
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: traffic-switcher-darwin-amd64
+            tsctl_name: tsctl-darwin-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: traffic-switcher-darwin-arm64
+            tsctl_name: tsctl-darwin-arm64
+          
+          # Windows targets
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: traffic-switcher-windows-amd64
+            tsctl_name: tsctl-windows-amd64
+            extension: .exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact_name: traffic-switcher-windows-arm64
+            tsctl_name: tsctl-windows-arm64
+            extension: .exe
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+      
+      - name: Install cross
+        if: matrix.use_cross == true
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      
+      - name: Build traffic-switcher
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+        shell: bash
+      
+      - name: Build tsctl
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }} -p tsctl
+          else
+            cargo build --release --target ${{ matrix.target }} -p tsctl
+          fi
+        shell: bash
+      
+      - name: Package binaries
+        run: |
+          mkdir -p artifacts
+          
+          # Package traffic-switcher
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/traffic_switcher.exe artifacts/${{ matrix.artifact_name }}.exe
+            cp target/${{ matrix.target }}/release/tsctl.exe artifacts/${{ matrix.tsctl_name }}.exe
+          else
+            cp target/${{ matrix.target }}/release/traffic_switcher artifacts/${{ matrix.artifact_name }}
+            cp target/${{ matrix.target }}/release/tsctl artifacts/${{ matrix.tsctl_name }}
+            chmod +x artifacts/${{ matrix.artifact_name }}
+            chmod +x artifacts/${{ matrix.tsctl_name }}
+          fi
+          
+          # Create tar.gz archive for non-Windows
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            cd artifacts
+            tar -czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.artifact_name }}
+            tar -czf ${{ matrix.tsctl_name }}.tar.gz ${{ matrix.tsctl_name }}
+            rm ${{ matrix.artifact_name }} ${{ matrix.tsctl_name }}
+            cd ..
+          else
+            # Create zip for Windows
+            cd artifacts
+            7z a ${{ matrix.artifact_name }}.zip ${{ matrix.artifact_name }}.exe
+            7z a ${{ matrix.tsctl_name }}.zip ${{ matrix.tsctl_name }}.exe
+            rm ${{ matrix.artifact_name }}.exe ${{ matrix.tsctl_name }}.exe
+            cd ..
+          fi
+        shell: bash
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: artifacts/*
+  
+  create-release:
+    name: Create Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: binaries-*
+          merge-multiple: true
+      
+      - name: List artifacts
+        run: ls -la artifacts/
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate install script
+        run: |
+          cat > install.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          VERSION="${1:-latest}"
+          INSTALL_DIR="${2:-/usr/local/bin}"
+          
+          # Detect OS and architecture
+          OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          ARCH="$(uname -m)"
+          
+          case "$OS" in
+            linux)
+              OS="linux"
+              ;;
+            darwin)
+              OS="darwin"
+              ;;
+            *)
+              echo "Unsupported OS: $OS"
+              exit 1
+              ;;
+          esac
+          
+          case "$ARCH" in
+            x86_64)
+              ARCH="amd64"
+              ;;
+            aarch64|arm64)
+              ARCH="arm64"
+              ;;
+            *)
+              echo "Unsupported architecture: $ARCH"
+              exit 1
+              ;;
+          esac
+          
+          # Construct download URLs
+          if [ "$VERSION" = "latest" ]; then
+            RELEASE_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
+            VERSION=$(curl -s "$RELEASE_URL" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
+          TRAFFIC_SWITCHER_FILE="traffic-switcher-${OS}-${ARCH}.tar.gz"
+          TSCTL_FILE="tsctl-${OS}-${ARCH}.tar.gz"
+          
+          echo "Installing Traffic Switcher ${VERSION} for ${OS}-${ARCH}..."
+          
+          # Download and install traffic-switcher
+          echo "Downloading traffic-switcher..."
+          curl -L -o "/tmp/${TRAFFIC_SWITCHER_FILE}" "${BASE_URL}/${TRAFFIC_SWITCHER_FILE}"
+          tar -xzf "/tmp/${TRAFFIC_SWITCHER_FILE}" -C /tmp
+          sudo mv "/tmp/traffic-switcher-${OS}-${ARCH}" "${INSTALL_DIR}/traffic-switcher"
+          sudo chmod +x "${INSTALL_DIR}/traffic-switcher"
+          rm "/tmp/${TRAFFIC_SWITCHER_FILE}"
+          
+          # Download and install tsctl
+          echo "Downloading tsctl..."
+          curl -L -o "/tmp/${TSCTL_FILE}" "${BASE_URL}/${TSCTL_FILE}"
+          tar -xzf "/tmp/${TSCTL_FILE}" -C /tmp
+          sudo mv "/tmp/tsctl-${OS}-${ARCH}" "${INSTALL_DIR}/tsctl"
+          sudo chmod +x "${INSTALL_DIR}/tsctl"
+          rm "/tmp/${TSCTL_FILE}"
+          
+          echo "Installation complete!"
+          echo "  - traffic-switcher installed to ${INSTALL_DIR}/traffic-switcher"
+          echo "  - tsctl installed to ${INSTALL_DIR}/tsctl"
+          echo ""
+          echo "Run 'tsctl --help' to get started"
+          EOF
+          
+          chmod +x install.sh
+      
+      - name: Upload install script
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
