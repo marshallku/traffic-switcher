@@ -18,7 +18,23 @@ pub struct Service {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Route {
     pub domain: String,
-    pub service: String,
+    #[serde(flatten)]
+    pub target: RouteTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum RouteTarget {
+    Service {
+        service: String,
+    },
+    Static {
+        root: String,
+        #[serde(default)]
+        index: Vec<String>,
+        #[serde(default)]
+        try_files: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +85,7 @@ pub struct AppState {
     pub proxy_port: u16,
     pub config: Arc<RwLock<Config>>,
     pub services_map: Arc<RwLock<HashMap<String, Service>>>,
-    pub routes_map: Arc<RwLock<HashMap<String, String>>>,
+    pub routes_map: Arc<RwLock<HashMap<String, RouteTarget>>>,
 }
 
 impl AppState {
@@ -93,7 +109,7 @@ impl AppState {
                 config
                     .routes
                     .into_iter()
-                    .map(|r| (r.domain.clone(), r.service.clone()))
+                    .map(|r| (r.domain.clone(), r.target.clone()))
                     .collect(),
             )),
         }

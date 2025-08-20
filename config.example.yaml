@@ -1,39 +1,53 @@
-api_port: 1143
-proxy_port: 1144
-
+# Backend services configuration
 services:
-    - name: blog
-      host: localhost
-      port: 4200
-      health_check:
-          path: /health
-
     - name: api
       host: localhost
       port: 3000
       health_check:
           path: /health
-          retry_count: 3
+          retry_count: 10
           retry_delay_seconds: 1
 
-    - name: admin
+    - name: webapp
       host: localhost
-      port: 5000
+      port: 8080
       health_check:
-          path: /health
-          retry_count: 10
+          path: /
+          retry_count: 5
           retry_delay_seconds: 2
 
+# Routing configuration with multiple types
 routes:
-    - domain: blog.example.com
-      service: blog
-
+    # Proxy to backend service
     - domain: api.example.com
+      type: service
       service: api
 
-    - domain: admin.example.com
-      service: admin
+    # Static file serving
+    - domain: static.example.com
+      type: static
+      root: /var/www/static
+      index:
+          - index.html
+          - index.htm
+      try_files:
+          - $uri
+          - $uri/
+          - /404.html
 
-    # Wildcard route (catches all other domains)
+    # Another static site with SPA support
+    - domain: app.example.com
+      type: static
+      root: /var/www/app
+      try_files:
+          - $uri
+          - /index.html # SPA fallback
+
+    # Default catch-all route
     - domain: "*"
-      service: blog
+      type: service
+      service: webapp
+
+# API and proxy ports
+api_port: 1143
+proxy_port: 1144

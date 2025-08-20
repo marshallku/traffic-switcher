@@ -8,7 +8,8 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;
 use tracing::error;
 
-use crate::env::state::AppState;
+use crate::env::state::{AppState, RouteTarget};
+use crate::routes::static_files::serve_static_file;
 
 pub async fn proxy_handler(
     Host(host): Host,
@@ -16,17 +17,38 @@ pub async fn proxy_handler(
     req: Request,
 ) -> Result<Response, StatusCode> {
     let routes = state.routes_map.read().await;
-    let services = state.services_map.read().await;
-
     let domain = host.split(':').next().unwrap_or(&host);
-    let service_name = routes
+
+    let route_target = routes
         .get(domain)
         .or_else(|| routes.get("*"))
         .ok_or(StatusCode::NOT_FOUND)?;
-    let service = services.get(service_name).ok_or(StatusCode::BAD_GATEWAY)?;
-    let target_addr = format!("{}:{}", service.host, service.port);
 
-    proxy_request(req, &target_addr).await
+    match route_target {
+        RouteTarget::Service { service } => {
+            let services = state.services_map.read().await;
+            let service_config = services.get(service).ok_or(StatusCode::BAD_GATEWAY)?;
+            let target_addr = format!("{}:{}", service_config.host, service_config.port);
+            proxy_request(req, &target_addr).await
+        }
+        RouteTarget::Static {
+            root,
+            index,
+            try_files,
+        } => {
+            let path = req.uri().path();
+            let default_index = vec!["index.html".to_string()];
+            let index_files = if index.is_empty() {
+                &default_index
+            } else {
+                index
+            };
+
+            serve_static_file(root, path, index_files, try_files)
+                .await
+                .map(|res| res.into_response())
+        }
+    }
 }
 
 pub async fn proxy_request(mut req: Request, target: &str) -> Result<Response, StatusCode> {
