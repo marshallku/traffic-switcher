@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  traffic-switcher:
+    image: ghcr.io/marshallku/traffic-switcher:latest
+    container_name: traffic-switcher
+    restart: always
+    ports:
+      - "1143:1143"  # API port
+      - "1144:1144"  # Proxy port
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - /var/log/traffic-switcher:/var/log
+    environment:
+      - RUST_LOG=info
+      - CONFIG_PATH=/app/config.yaml
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1143/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Example blue-green deployment setup
+  app-blue:
+    image: your-app:latest
+    container_name: app-blue
+    restart: always
+    ports:
+      - "8080:80"
+    networks:
+      - proxy-network
+    environment:
+      - ENV=blue
+
+  app-green:
+    image: your-app:latest
+    container_name: app-green
+    restart: always
+    ports:
+      - "8081:80"
+    networks:
+      - proxy-network
+    environment:
+      - ENV=green
+
+networks:
+  proxy-network:
+    driver: bridge
