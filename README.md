@@ -31,6 +31,40 @@ Traffic Switcher consists of two main components:
 
 ### Installation
 
+#### Option 1: Pre-built Binaries
+
+Download the latest binaries for your platform from the [releases page](https://github.com/marshallku/traffic_switcher/releases).
+
+##### Linux/macOS (Quick Install)
+
+```bash
+# Install latest version
+curl -sSL https://github.com/marshallku/traffic_switcher/releases/latest/download/install.sh | bash
+
+# Or specify a version
+curl -sSL https://github.com/marshallku/traffic_switcher/releases/download/v1.0.0/install.sh | bash -s -- v1.0.0
+```
+
+##### Manual Installation
+
+1. Download the appropriate binary for your platform:
+   - Linux: `traffic-switcher-linux-amd64`, `traffic-switcher-linux-arm64`
+   - macOS: `traffic-switcher-darwin-amd64`, `traffic-switcher-darwin-arm64`
+   - Windows: `traffic-switcher-windows-amd64.exe`
+
+2. Extract and move to your PATH:
+```bash
+tar -xzf traffic-switcher-linux-amd64.tar.gz
+sudo mv traffic-switcher-linux-amd64 /usr/local/bin/traffic-switcher
+sudo chmod +x /usr/local/bin/traffic-switcher
+
+tar -xzf tsctl-linux-amd64.tar.gz
+sudo mv tsctl-linux-amd64 /usr/local/bin/tsctl
+sudo chmod +x /usr/local/bin/tsctl
+```
+
+#### Option 2: Build from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/marshallku/traffic_switcher.git
@@ -39,8 +73,10 @@ cd traffic_switcher
 # Build the project
 cargo build --release
 
-# Run the server
-cargo run
+# Install binaries
+sudo cp target/release/traffic_switcher /usr/local/bin/traffic-switcher
+sudo cp target/release/tsctl /usr/local/bin/tsctl
+sudo chmod +x /usr/local/bin/traffic-switcher /usr/local/bin/tsctl
 ```
 
 ## Configuration
@@ -140,24 +176,81 @@ curl -X POST http://localhost:1143/config/port \
 
 The `tsctl` command-line tool provides an easy way to manage Traffic Switcher:
 
+#### Server Management
+
 ```bash
-# Build the CLI tool
-cargo build -p tsctl
+# Start the server
+tsctl start                                      # Start in foreground
+tsctl start --daemon                             # Start in background
+tsctl start --daemon --log-file /var/log/ts.log # With logging
+tsctl start --daemon --pid-file /var/run/ts.pid # With PID file
+tsctl start --config /path/to/config.yaml       # Custom config path
+tsctl start --verbose                            # Enable debug logging
 
+# Stop the server
+tsctl stop --pid-file /var/run/ts.pid           # Stop using PID file
+tsctl stop --pid 12345                          # Stop specific process
+
+# Check server status
+tsctl status                                     # Check server status
+tsctl status --pid-file /var/run/ts.pid        # With PID file
+```
+
+#### Service Management
+
+```bash
 # Update service port
-cargo run -p tsctl -- port <service> <port> [--skip-health]
+tsctl port <service> <port> [--skip-health]
 
-# Reload configuration from disk
-cargo run -p tsctl -- reload
+# Switch between ports (blue-green deployment)
+tsctl switch <service> <from-port> <to-port> [--skip-health]
 
+# Rollback to previous port
+tsctl rollback <service>
+
+# Show current port for a service
+tsctl current <service>
+
+# Automated deployment
+tsctl deploy <service> <previous-port> <next-port> [--skip-health]
+```
+
+#### Configuration Management
+
+```bash
 # Get current configuration
-cargo run -p tsctl -- config
+tsctl config
 
-# Examples
-cargo run -p tsctl -- port blog 4201                  # Switch blog to port 4201 with health check
-cargo run -p tsctl -- port api 3001 --skip-health     # Switch API to port 3001, skip health check
-cargo run -p tsctl -- reload                          # Reload config.yaml
-cargo run -p tsctl -- config                          # Display current configuration
+# List all services
+tsctl services
+
+# List all routes
+tsctl routes
+
+# Check service health
+tsctl health <service>
+```
+
+#### Examples
+
+```bash
+# Start server in background
+tsctl start --daemon --pid-file /var/run/traffic-switcher.pid --log-file /var/log/traffic-switcher.log
+
+# Switch blog service to port 4201 with health check
+tsctl port blog 4201
+
+# Switch API to port 3001, skip health check
+tsctl port api 3001 --skip-health
+
+# Perform blue-green deployment
+tsctl switch webapp 8080 8081
+
+# Check server status
+tsctl status --pid-file /var/run/traffic-switcher.pid
+
+# Stop the server
+tsctl stop --pid-file /var/run/traffic-switcher.pid
 ```
 
 #### Using tsctl for Configuration Updates

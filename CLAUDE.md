@@ -49,11 +49,19 @@ cargo clippy
 # Build the CLI
 cargo build -p tsctl
 
+# Start/stop server
+tsctl start [--daemon] [--log-file <path>] [--pid-file <path>]
+tsctl stop --pid-file <path>
+tsctl status [--pid-file <path>]
+
 # Update service port
-cargo run -p tsctl -- port <service> <port> [--skip-health]
+tsctl port <service> <port> [--skip-health]
 
 # Example: Switch blog service to port 18090
-cargo run -p tsctl -- port blog 18090
+tsctl port blog 18090
+
+# Example: Start server in background
+tsctl start --daemon --pid-file /var/run/ts.pid --log-file /var/log/ts.log
 ```
 
 ## Core Architecture
