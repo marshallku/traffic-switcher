@@ -8,6 +8,8 @@ A high-performance HTTP reverse proxy server with dynamic port switching capabil
 -   **Health Checks**: Built-in health check system with configurable retries and delays
 -   **Hot Configuration Reload**: Update routes and services without restarting the proxy
 -   **Multi-Domain Support**: Route multiple domains to different backend services
+-   **Static File Serving**: Serve static files with index files and SPA fallback support
+-   **HTTP Redirects**: Configure redirects with customizable status codes
 -   **Wildcard Routing**: Support for catch-all routes with wildcard domains
 -   **CLI Tool**: Command-line interface (`tsctl`) for easy management
 -   **Blue-Green Deployments**: Native support for blue-green deployment strategies
@@ -50,26 +52,58 @@ api_port: 1143
 proxy_port: 1144
 
 services:
-    blog:
-        host: "localhost"
-        port: 4200
-        health_check:
-            path: "/health"
-            retry_count: 3
-            delay: 1000 # milliseconds
+    - name: api
+      host: localhost
+      port: 3000
+      health_check:
+          path: /health
+          retry_count: 10
+          retry_delay_seconds: 1
 
-    api:
-        host: "localhost"
-        port: 3000
-        health_check:
-            path: "/api/health"
-            retry_count: 5
-            delay: 2000
+    - name: webapp
+      host: localhost
+      port: 8080
+      health_check:
+          path: /
+          retry_count: 5
+          retry_delay_seconds: 2
 
 routes:
-    "blog.example.com": "blog"
-    "api.example.com": "api"
-    "*": "blog" # Wildcard catch-all route
+    # Proxy to backend service
+    - domain: api.example.com
+      type: service
+      service: api
+
+    # Static file serving
+    - domain: static.example.com
+      type: static
+      root: /var/www/static
+      index:
+          - index.html
+          - index.htm
+      try_files:
+          - $uri
+          - $uri/
+          - /404.html
+
+    # SPA application with fallback
+    - domain: app.example.com
+      type: static
+      root: /var/www/app
+      try_files:
+          - $uri
+          - /index.html # SPA fallback
+
+    # Redirect example
+    - domain: old.example.com
+      type: redirect
+      to: https://new.example.com
+      code: 307
+
+    # Default catch-all route
+    - domain: "*"
+      type: service
+      service: webapp
 ```
 
 ## Usage
@@ -212,20 +246,21 @@ For a complete example, see the [deployment script](https://github.com/marshallk
 ```
 traffic-switcher/
 ├── src/
-│   ├── main.rs           # Application entry point
+│   ├── main.rs             # Application entry point
 │   ├── env/
-│   │   ├── config.rs     # Configuration structures
-│   │   └── state.rs      # Application state management
+│   │   ├── config.rs       # Configuration structures
+│   │   └── state.rs        # Application state management
 │   ├── routes/
-│   │   ├── api.rs        # Management API endpoints
-│   │   └── proxy.rs      # HTTP proxy implementation
-│   └── utils/            # Utility functions
-├── tsctl/                # CLI tool package
+│   │   ├── api.rs          # Management API endpoints
+│   │   ├── proxy.rs        # HTTP proxy implementation
+│   │   └── static_files.rs # Static file serving
+│   └── utils/              # Utility functions
+├── tsctl/                  # CLI tool package
 │   └── src/
-│       └── main.rs       # CLI implementation
-├── config.yaml           # Configuration file
-├── Cargo.toml           # Rust dependencies
-└── Dockerfile           # Container definition
+│       └── main.rs         # CLI implementation
+├── config.yaml             # Configuration file
+├── Cargo.toml              # Rust dependencies
+└── Dockerfile              # Container definition
 ```
 
 ## How It Works
@@ -235,7 +270,10 @@ traffic-switcher/
     - Client sends request to proxy server (port 1144)
     - Proxy extracts domain from Host header
     - Domain is matched against routes configuration
-    - Request is forwarded to the corresponding backend service
+    - Based on route type:
+        - **Service**: Request is forwarded to the backend service
+        - **Static**: File is served from disk with proper MIME type
+        - **Redirect**: HTTP redirect response is returned
 
 2. **Port Switching**:
 
@@ -246,9 +284,22 @@ traffic-switcher/
     - Previous port information is retained for rollback
 
 3. **Health Checks**:
+
     - Configurable per service with custom path
     - Retry mechanism with configurable count and delay
     - Prevents switching to unhealthy services
+
+4. **Static File Serving**:
+
+    - Secure path resolution with traversal protection
+    - Configurable index files for directories
+    - Try-files mechanism for SPA routing
+    - Automatic MIME type detection
+
+5. **HTTP Redirects**:
+    - Support for all standard redirect status codes
+    - Configurable destination URLs
+    - Method preservation options (307, 308)
 
 ## Contributing
 

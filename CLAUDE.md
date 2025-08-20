@@ -63,7 +63,11 @@ cargo run -p tsctl -- port blog 18090
 The application uses a YAML-based configuration (`config.yaml`) that defines:
 
 -   **Services**: Backend services with host, port, and optional health check configuration
--   **Routes**: Domain-to-service mappings (supports wildcard "\*" for catch-all)
+-   **Routes**: Domain routing with multiple types:
+    -   **Service Routes**: Proxy requests to backend services
+    -   **Static Routes**: Serve static files from disk with configurable index files and fallback rules
+    -   **Redirect Routes**: HTTP redirects with customizable status codes (301, 302, 307, 308, etc.)
+    -   **Wildcard Support**: Use "\*" for catch-all routing
 -   **Ports**: API and proxy server ports
 
 Configuration can be dynamically reloaded and modified at runtime through the API.
@@ -77,8 +81,11 @@ Configuration can be dynamically reloaded and modified at runtime through the AP
 ### Request Flow
 
 1. **Proxy Server** (src/routes/proxy.rs): Receives incoming HTTP requests on proxy_port
-2. Extracts domain from Host header and looks up service in routes_map
-3. Establishes TCP connection to backend service and proxies the request
+2. Extracts domain from Host header and determines route type
+3. Processes request based on route type:
+   - **Service**: Establishes TCP connection to backend service and proxies the request
+   - **Static**: Serves files from configured root directory with MIME type detection
+   - **Redirect**: Returns HTTP redirect response with configured status code
 4. Uses hyper for low-level HTTP handling to preserve headers
 
 ### Health Check System
@@ -108,6 +115,26 @@ The `update_service_port` method (src/env/state.rs:122-181) implements atomic po
 ### Proxy Implementation
 
 The proxy uses raw hyper connections (src/routes/proxy.rs:32-76) to maintain full control over HTTP headers and preserve original request characteristics, critical for proper reverse proxy behavior.
+
+### Static File Serving
+
+The static file handler (src/routes/static_files.rs) provides:
+
+-   **Security**: Path traversal protection with ".." and null byte filtering
+-   **Index Files**: Configurable index file lookup for directories (e.g., index.html)
+-   **Try Files**: Fallback mechanism for SPA routing (e.g., fallback to /index.html)
+-   **MIME Types**: Automatic content-type detection with UTF-8 charset for text files
+-   **URL Decoding**: Proper handling of percent-encoded URLs
+
+### Redirect Handling
+
+Supports various HTTP redirect status codes:
+
+-   **301**: Permanent redirect (Moved Permanently)
+-   **302**: Temporary redirect (Found)
+-   **303**: See Other (POST to GET redirect)
+-   **307**: Temporary redirect (preserves method)
+-   **308**: Permanent redirect (preserves method)
 
 ### Workspace Structure
 
