@@ -43,6 +43,12 @@ routes:
           - $uri
           - /index.html # SPA fallback
 
+    # Redirect example
+    - domain: old.example.com
+      type: redirect
+      to: https://new.example.com
+      code: 307
+
     # Default catch-all route
     - domain: "*"
       type: service

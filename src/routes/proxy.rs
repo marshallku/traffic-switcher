@@ -1,7 +1,7 @@
 use axum::{
     extract::{Host, Request, State},
     http::{uri::Uri, StatusCode},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use hyper::client::conn::http1::Builder;
 use hyper_util::rt::TokioIo;
@@ -47,6 +47,17 @@ pub async fn proxy_handler(
             serve_static_file(root, path, index_files, try_files)
                 .await
                 .map(|res| res.into_response())
+        }
+        RouteTarget::Redirect { to, code } => {
+            let redirect = match *code {
+                301 => Redirect::permanent(to),
+                302 => Redirect::temporary(to),
+                303 => Redirect::to(to),
+                307 => Redirect::temporary(to),
+                308 => Redirect::permanent(to),
+                _ => Redirect::to(to),
+            };
+            Ok(redirect.into_response())
         }
     }
 }

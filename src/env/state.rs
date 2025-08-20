@@ -35,6 +35,15 @@ pub enum RouteTarget {
         #[serde(default)]
         try_files: Vec<String>,
     },
+    Redirect {
+        to: String,
+        #[serde(default = "default_redirect_code")]
+        code: u16,
+    },
+}
+
+fn default_redirect_code() -> u16 {
+    307
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
